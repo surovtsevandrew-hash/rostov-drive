@@ -1,5 +1,6 @@
 import * as T from 'three';
 import type {CityData,Point} from './geo';
+import {buildRiverfront} from './riverfront';
 
 type Footprint={polygon:Point[];minX:number;maxX:number;minZ:number;maxZ:number;height:number};
 const rand=(s:number)=>{const n=Math.sin(s*12.9898+17.23)*43758.5453;return n-Math.floor(n);};
@@ -50,8 +51,26 @@ export class CityWorld{
  readonly group=new T.Group();
  readonly boxes:Footprint[]=[];
  readonly buildingCount:number;
+ readonly riverfrontCount:number;
+ private readonly buildingChunks=new Map<string,T.Group>();
+ private visibleCell='';
+ private getBuildingChunk(x:number,z:number):T.Group{
+  const key=Math.floor(x/256)+':'+Math.floor(z/256);
+  let group=this.buildingChunks.get(key);
+  if(!group){group=new T.Group();this.group.add(group);this.buildingChunks.set(key,group);}
+  return group;
+ }
+ updateView(x:number,z:number):void{
+  const key=Math.floor(x/140)+':'+Math.floor(z/140);
+  if(key===this.visibleCell)return;
+  this.visibleCell=key;
+  for(const [name,group] of this.buildingChunks){
+   const [a,b]=name.split(':').map(Number);
+   group.visible=Math.abs((a+.5)*256-x)<1050&&Math.abs((b+.5)*256-z)<1050;
+  }
+ }
  constructor(readonly data:CityData){
-  ground.map?.repeat.set(240,240);const earth=new T.Mesh(new T.PlaneGeometry(3600,3600),ground);earth.rotation.x=-Math.PI/2;earth.position.y=-.13;earth.receiveShadow=true;this.group.add(earth);
+  ground.map?.repeat.set(320,300);const earth=new T.Mesh(new T.PlaneGeometry(5200,5000),ground);earth.rotation.x=-Math.PI/2;earth.position.y=-.13;earth.receiveShadow=true;this.group.add(earth);
   const pavementVertices:number[]=[],roadVertices:number[]=[],stripeVertices:number[]=[],edgeVertices:number[]=[];
   const treeSites:{x:number;z:number;seed:number}[]=[],lampSites:{x:number;z:number}[]=[];
   for(const r of data.roads)for(let i=1;i<r.points.length;i++){
@@ -80,7 +99,7 @@ export class CityWorld{
    if(w*d<15||w>170||d>170)continue;
    const shape=new T.Shape();shape.moveTo(p[0].x,-p[0].z);for(const q of p.slice(1))shape.lineTo(q.x,-q.z);shape.closePath();
    const g=new T.ExtrudeGeometry(shape,{depth:Math.max(3,Math.min(145,building.height)),bevelEnabled:false,steps:1,curveSegments:1});g.rotateX(-Math.PI/2);
-   const mesh=new T.Mesh(g,facades[Math.abs(building.id)%facades.length]);mesh.castShadow=true;mesh.receiveShadow=true;this.group.add(mesh);this.boxes.push(box);count++;
+   const mesh=new T.Mesh(g,facades[Math.abs(building.id)%facades.length]);mesh.castShadow=true;mesh.receiveShadow=true;this.getBuildingChunk((box.minX+box.maxX)*.5,(box.minZ+box.maxZ)*.5).add(mesh);this.boxes.push(box);count++;
    const levels=Math.min(24,Math.floor(building.height/3.15));
    for(let i=0;i<p.length;i++){
     const a=p[i],b=p[(i+1)%p.length],dx=b.x-a.x,dz=b.z-a.z,len=Math.hypot(dx,dz);if(len<5||len>140)continue;
@@ -109,6 +128,8 @@ export class CityWorld{
   instance(this.group,new T.IcosahedronGeometry(2.5,1),leaves,crowns);
   instance(this.group,new T.CylinderGeometry(.055,.09,6.6,6),pole,poles);
   instance(this.group,new T.SphereGeometry(.34,8,6),light,bulbs);
+  const shoreline=buildRiverfront(data);this.group.add(shoreline.group);this.riverfrontCount=shoreline.promenadeCount;
+  this.updateView(0,0);
  }
  blocked(x:number,z:number,r=.5):boolean{
   for(const b of this.boxes){if(x+r<b.minX||x-r>b.maxX||z+r<b.minZ||z-r>b.maxZ)continue;
