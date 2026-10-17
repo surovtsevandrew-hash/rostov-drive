@@ -90,13 +90,16 @@ export class CityWorld{
    const mesh=surface(v,mat);if(mesh){mesh.receiveShadow=true;this.group.add(mesh);}
   }
   const facades=[0xc7b8a6,0xd3c2ae,0xb9b3a8,0xaaa89e,0xd0baac,0x9eaaa8,0xd4bda4].map(color=>new T.MeshStandardMaterial({color,roughness:.91}));
-  const panes:T.Matrix4[]=[],frames:T.Matrix4[]=[];let count=0;
+  const windowBuckets=new Map<string,{panes:T.Matrix4[];frames:T.Matrix4[]}>();let count=0,windowCount=0;
   for(const building of data.buildings){
    const p=building.points;if(p.length<3)continue;
    const xs=p.map(q=>q.x),zs=p.map(q=>q.z);
    const box:Footprint={polygon:p,minX:Math.min(...xs),maxX:Math.max(...xs),minZ:Math.min(...zs),maxZ:Math.max(...zs),height:building.height};
    const w=box.maxX-box.minX,d=box.maxZ-box.minZ;
    if(w*d<15||w>170||d>170)continue;
+   const chunkKey=Math.floor(((box.minX+box.maxX)*.5)/256)+':'+Math.floor(((box.minZ+box.maxZ)*.5)/256);
+   let windows=windowBuckets.get(chunkKey);
+   if(!windows){windows={panes:[],frames:[]};windowBuckets.set(chunkKey,windows);}
    const shape=new T.Shape();shape.moveTo(p[0].x,-p[0].z);for(const q of p.slice(1))shape.lineTo(q.x,-q.z);shape.closePath();
    const g=new T.ExtrudeGeometry(shape,{depth:Math.max(3,Math.min(145,building.height)),bevelEnabled:false,steps:1,curveSegments:1});g.rotateX(-Math.PI/2);
    const mesh=new T.Mesh(g,facades[Math.abs(building.id)%facades.length]);mesh.castShadow=true;mesh.receiveShadow=true;this.getBuildingChunk((box.minX+box.maxX)*.5,(box.minZ+box.maxZ)*.5).add(mesh);this.boxes.push(box);count++;
@@ -105,29 +108,44 @@ export class CityWorld{
     const a=p[i],b=p[(i+1)%p.length],dx=b.x-a.x,dz=b.z-a.z,len=Math.hypot(dx,dz);if(len<5||len>140)continue;
     const nx=-dz/len,nz=dx/len,cols=Math.min(35,Math.floor(len/3)),angle=-Math.atan2(dz,dx);
     for(let level=0;level<levels;level++)for(let n=0;n<cols;n++){
-     if(panes.length>=30000)break;
+     if(windowCount>=125000)break;
      const t=(n+.5)/cols,x=a.x+dx*t,z=a.z+dz*t,y=2.15+level*3.15;
-     panes.push(matrix(x+nx*.11,y,z+nz*.11,angle));
-     frames.push(matrix(x+nx*.075,y,z+nz*.075,angle,1.38,1.3,1));
+     windows.panes.push(matrix(x+nx*.11,y,z+nz*.11,angle));
+     windows.frames.push(matrix(x+nx*.075,y,z+nz*.075,angle,1.38,1.3,1));windowCount++;
     }
    }
   }
   this.buildingCount=count;
-  instance(this.group,new T.BoxGeometry(1.12,1.36,.09),glass,panes);
-  instance(this.group,new T.BoxGeometry(1.12,1.36,.08),framing,frames);
-  const trunks:T.Matrix4[]=[],crowns:T.Matrix4[]=[],poles:T.Matrix4[]=[],bulbs:T.Matrix4[]=[];
-  for(const t of treeSites){if(trunks.length>=300)break;if(this.blocked(t.x,t.z,2.1)||rand(t.seed)<.35)continue;
+  const glassShape=new T.BoxGeometry(1.12,1.36,.09),frameShape=new T.BoxGeometry(1.12,1.36,.08);
+  for(const [key,mats] of windowBuckets){
+   const chunk=this.buildingChunks.get(key);
+   if(chunk){instance(chunk,glassShape,glass,mats.panes);instance(chunk,frameShape,framing,mats.frames);}
+  }
+  const scenery=new Map<string,{trunks:T.Matrix4[];crowns:T.Matrix4[];poles:T.Matrix4[];bulbs:T.Matrix4[]}>();
+  const sceneryFor=(x:number,z:number)=>{
+   const key=Math.floor(x/256)+':'+Math.floor(z/256);
+   let matrices=scenery.get(key);
+   if(!matrices){matrices={trunks:[],crowns:[],poles:[],bulbs:[]};scenery.set(key,matrices);}
+   this.getBuildingChunk(x,z);
+   return matrices;
+  };
+  let treeCount=0;
+  for(const t of treeSites){if(treeCount>=1600)break;if(this.blocked(t.x,t.z,2.1)||rand(t.seed)<.35)continue;
    const scale=.82+rand(t.seed*2)*.6;
-   trunks.push(matrix(t.x,2.2*scale,t.z,0,scale,scale,scale));
-   crowns.push(matrix(t.x,5.15*scale,t.z,0,scale,scale,scale));
+   const out=sceneryFor(t.x,t.z);
+   out.trunks.push(matrix(t.x,2.2*scale,t.z,0,scale,scale,scale));
+   out.crowns.push(matrix(t.x,5.15*scale,t.z,0,scale,scale,scale));treeCount++;
   }
-  for(const t of lampSites.slice(0,220)){if(this.blocked(t.x,t.z,1.3))continue;
-   poles.push(matrix(t.x,3.3,t.z));bulbs.push(matrix(t.x,6.62,t.z));
+  for(const t of lampSites.slice(0,800)){if(this.blocked(t.x,t.z,1.3))continue;
+   const out=sceneryFor(t.x,t.z);out.poles.push(matrix(t.x,3.3,t.z));out.bulbs.push(matrix(t.x,6.62,t.z));
   }
-  instance(this.group,new T.CylinderGeometry(.18,.28,4.4,7),trunk,trunks);
-  instance(this.group,new T.IcosahedronGeometry(2.5,1),leaves,crowns);
-  instance(this.group,new T.CylinderGeometry(.055,.09,6.6,6),pole,poles);
-  instance(this.group,new T.SphereGeometry(.34,8,6),light,bulbs);
+  const trunkShape=new T.CylinderGeometry(.18,.28,4.4,7),crownShape=new T.IcosahedronGeometry(2.5,1);
+  const poleShape=new T.CylinderGeometry(.055,.09,6.6,6),bulbShape=new T.SphereGeometry(.34,8,6);
+  for(const [key,s] of scenery){const chunk=this.buildingChunks.get(key);
+   if(!chunk)continue;
+   instance(chunk,trunkShape,trunk,s.trunks);instance(chunk,crownShape,leaves,s.crowns);
+   instance(chunk,poleShape,pole,s.poles);instance(chunk,bulbShape,light,s.bulbs);
+  }
   const shoreline=buildRiverfront(data);this.group.add(shoreline.group);this.riverfrontCount=shoreline.promenadeCount;
   this.updateView(0,0);
  }
