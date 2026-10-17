@@ -51,7 +51,7 @@ export class CityWorld{
  readonly boxes:Footprint[]=[];
  readonly buildingCount:number;
  constructor(readonly data:CityData){
-  const earth=new T.Mesh(new T.PlaneGeometry(3600,3600),ground);earth.rotation.x=-Math.PI/2;earth.position.y=-.13;earth.receiveShadow=true;this.group.add(earth);
+  ground.map?.repeat.set(240,240);const earth=new T.Mesh(new T.PlaneGeometry(3600,3600),ground);earth.rotation.x=-Math.PI/2;earth.position.y=-.13;earth.receiveShadow=true;this.group.add(earth);
   const pavementVertices:number[]=[],roadVertices:number[]=[],stripeVertices:number[]=[],edgeVertices:number[]=[];
   const treeSites:{x:number;z:number;seed:number}[]=[],lampSites:{x:number;z:number}[]=[];
   for(const r of data.roads)for(let i=1;i<r.points.length;i++){
