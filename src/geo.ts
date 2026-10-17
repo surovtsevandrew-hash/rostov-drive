@@ -1,4 +1,17 @@
-export type Point={x:number;z:number};export type Geo={lat:number;lon:number};export type Road={id:number;name:string;width:number;points:Point[]};export type Building={id:number;height:number;points:Point[]};export type CityData={roads:Road[];buildings:Building[];source:string};export const CENTER={lat:47.222586,lon:39.719441};const A=111320,B=A*Math.cos(CENTER.lat*Math.PI/180);export const project=(p:Geo):Point=>({x:(p.lon-CENTER.lon)*B,z:-(p.lat-CENTER.lat)*A});export const location=(p:Point):Geo=>({lat:CENTER.lat-p.z/A,lon:CENTER.lon+p.x/B});const WIDTH:Record<string,number>={primary:15,secondary:12,tertiary:10,residential:8,living_street:6,service:5,unclassified:7,pedestrian:5,trunk:18};type Element={id:number;type:string;geometry?:Geo[];tags?:Record<string,string>};export function parseOSM(elements:Element[]):CityData{const roads:Road[]=[],buildings:Building[]=[];for(const el of elements){const tags=el.tags||{},p=el.geometry?.map(project);if(!p||el.type!=='way')continue;if(tags.highway&&WIDTH[tags.highway]&&p.length>1)roads.push({id:el.id,name:tags.name||'',width:WIDTH[tags.highway],points:p});if(tags.building&&p.length>=4){if(Math.hypot(p[0].x-p[p.length-1].x,p[0].z-p[p.length-1].z)<1)p.pop();const h=Number(tags.height),l=Number(tags['building:levels']);buildings.push({id:el.id,points:p,height:Number.isFinite(h)&&h>2?Math.min(h,150):Number.isFinite(l)&&l>0?Math.min(3.2*l,150):12});}}if(roads.length<8||buildings.length<8)throw Error('Недостаточно OSM-данных: '+roads.length+' дорог, '+buildings.length+' зданий');return{roads,buildings,source:'© OpenStreetMap contributors (ODbL)'};}
+export type Point={x:number;z:number};
+export type Geo={lat:number;lon:number};
+export type Road={id:number;name:string;width:number;kind?:string;points:Point[]};
+export type Building={id:number;height:number;points:Point[]};
+export type Polygon={id:number;points:Point[];name?:string;kind?:string};
+export type Path={id:number;points:Point[];name:string;width:number};
+export type CityData={
+ roads:Road[];buildings:Building[];source:string;area_bounds?:number[];
+ parks?:Polygon[];water?:Polygon[];waterways?:Path[];footways?:Path[];waterfront?:Path[];
+};
+export const CENTER={lat:47.222586,lon:39.719441};
+const A=111320,B=A*Math.cos(CENTER.lat*Math.PI/180);
+export const project=(p:Geo):Point=>({x:(p.lon-CENTER.lon)*B,z:-(p.lat-CENTER.lat)*A});
+export const location=(p:Point):Geo=>({lat:CENTER.lat-p.z/A,lon:CENTER.lon+p.x/B});
 export function chooseSpawn(city:CityData):{x:number;z:number;heading:number}{
  let result:{x:number;z:number;heading:number}|null=null;
  let min=Infinity;
@@ -16,12 +29,13 @@ export function chooseSpawn(city:CityData):{x:number;z:number;heading:number}{
  return result;
 }
 export async function loadCity(status:(s:string)=>void):Promise<CityData>{
- status('Открываю локальные геоданные настоящего Ростова...');
- let response:Response;
- try{response=await fetch('/world/center.json',{cache:'no-store'});}
- catch{throw Error('Не удаётся открыть center.json. Выполни bash scripts/prepare_world.sh');}
- if(!response.ok)throw Error('Геоданные не подготовлены. Выполни bash scripts/prepare_world.sh в терминале Mac');
+ status('Открываю локальные геоданные Ростова, Дона и набережной...');
+ const response=await fetch('/world/center.json',{cache:'no-store'});
+ if(!response.ok)throw Error('Геоданные не подготовлены. Выполни bash scripts/prepare_world.sh');
  const data=await response.json() as CityData;
- if(!Array.isArray(data.roads)||!Array.isArray(data.buildings)||data.roads.length<8||data.buildings.length<8)throw Error('Неверный или неполный center.json');
+ if(!Array.isArray(data.roads)||!Array.isArray(data.buildings)||data.roads.length<8||data.buildings.length<8)
+  throw Error('Некорректные геоданные OSM');
+ if(!data.area_bounds || !Array.isArray(data.waterfront))
+  throw Error('Обнаружен старый center.json. Выполни bash scripts/prepare_world.sh для расширения города');
  return data;
 }
