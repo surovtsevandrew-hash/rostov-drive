@@ -1,6 +1,8 @@
 node_modules/
 dist/
 .env
+.venv/
+.data/
 *.osm.pbf
 public/world/*.json
 .DS_Store
