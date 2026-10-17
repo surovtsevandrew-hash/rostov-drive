@@ -60,7 +60,7 @@ export function buildRiverfront(data:CityData):{group:THREE.Group;waterCount:num
  const ripples:number[]=[];
  for(const river of rivers){
   for(let i=1;i<river.points.length;i++){
-   if(water.length===0)ribbon(ripples,river.points[i-1],river.points[i],river.width,.014);
+   ribbon(ripples,river.points[i-1],river.points[i],river.width,.014);
   }
  }
  const body=ribbonMesh(ripples,waterMaterial);if(body)group.add(body);

@@ -59,16 +59,22 @@ export class StreetTraffic{
  }
  private placeWalkers(x:number,z:number):void{
   const nearby=this.pedestrianRoutes.filter(r=>near(r,x,z,540));
-  for(const old of this.walkers)this.people.remove(old.mesh);
-  this.walkers.length=0;
-  if(!nearby.length)return;
+  if(!nearby.length){for(const w of this.walkers)w.mesh.visible=false;return;}
   for(let i=0;i<14;i++){
-   const mesh=human();
-   mesh.scale.setScalar(.88+random(i*8)*.16);
-   mesh.traverse(n=>{if(n instanceof THREE.Mesh)n.castShadow=false;});
-   this.people.add(mesh);
+   let walker=this.walkers[i];
    const route=nearby[Math.floor(random(i*43+Math.floor(x/260))*nearby.length)];
-   this.walkers.push({mesh,route,distance:random(i*47)*route.total,speed:.95+random(i*32)*.7,direction:i%2?1:-1,seed:i,heading:0,phase:0});
+   if(!walker){
+    const mesh=human();mesh.scale.setScalar(.88+random(i*8)*.16);
+    mesh.traverse(n=>{if(n instanceof THREE.Mesh)n.castShadow=false;});
+    this.people.add(mesh);
+    walker={mesh,route,distance:0,speed:.95+random(i*32)*.7,direction:i%2?1:-1,seed:i,heading:0,phase:0};
+    this.walkers.push(walker);
+   }
+   walker.route=route;
+   walker.distance=random(i*47+Math.floor(z/140))*route.total;
+   walker.mesh.visible=true;
+   const point=evaluate(route,walker.distance,walker.direction);
+   walker.mesh.position.set(point.x,.04,point.z);
   }
  }
  update(dt:number,x:number,z:number,playerCar?:Point):void{
