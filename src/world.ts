@@ -115,7 +115,7 @@ export class CityWorld{
    if(inside(x,z,b.polygon)||inside(x+r,z,b.polygon)||inside(x-r,z,b.polygon)||inside(x,z+r,b.polygon)||inside(x,z-r,b.polygon))return true;
   }return false;
  }
- cameraClearance(x:number,z,tx:number,tz:number):number{
+ cameraClearance(x:number,z:number,tx:number,tz:number):number{
   const distance=Math.hypot(tx-x,tz-z);if(distance<.1)return 0;
   const steps=Math.ceil(distance/.6);
   for(let i=2;i<=steps;i++){const t=i/steps;if(this.blocked(x+(tx-x)*t,z+(tz-z)*t,.35))return Math.max(1.7,distance*t-1);}
