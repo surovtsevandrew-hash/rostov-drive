@@ -1,13 +1,35 @@
 # ROSTOV DRIVE
 
-Browser-based 3D open-world prototype based on real Rostov-on-Don OpenStreetMap geometry.
+**Автор: Genz0, Андрей Суровцев**
 
-**Author:** Genz0, Андрей Суровцев
+Браузерная 3D-игра по реальной географии центра Ростова-на-Дону. Первая открытая альфа с собственными игровыми мешами зданий и дорог, а не наклонённой картой.
 
-## Status
+## Запуск
 
-Stage 1 in development. Real street and building geometry is the sole source of the world. No fictional fallback city or raster-map-as-ground workaround.
+Требуется Node.js 22+.
 
-## Architecture
+```bash
+npm install
+npm run dev
+```
 
-Three.js, TypeScript, Vite, Rapier physics, OSM import pipeline. Further implementation and setup instructions will be added in the following commit.
+Открой http://localhost:5173. При отсутствии локальной геометрии браузер пробует реальные OSM-данные через Overpass. Если публичный сервер не отвечает, игра явно сообщит об ошибке, не подменяя Ростов вымышленным городом.
+
+## Надёжный локальный импорт
+
+```bash
+python3 -m pip install osmium
+curl -L --fail -o south-fed-district.osm.pbf https://download.geofabrik.de/russia/south-fed-district-latest.osm.pbf
+python3 scripts/import_osm.py --input south-fed-district.osm.pbf
+npm run dev
+```
+
+## Что уже есть
+
+Реальные контуры зданий, реальные линии улиц, процедурные тротуары и 3D-фасады, третье лицо, машина, персонаж, базовое управление и Rapier world. Проверка TypeScript и реальный запуск ещё требуются после установки npm-зависимостей.
+
+## Не реализовано
+
+Физика колёс, скелетные GLB, NPC, задания, полный Ростов, мосты с уровнями, настоящие текстуры, оптимизация большого мира и сервер мультиплеера. Длина кода не раздувается искусственно.
+
+Геоданные © OpenStreetMap contributors (ODbL): https://www.openstreetmap.org/copyright
