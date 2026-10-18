@@ -9,7 +9,8 @@ from PIL import Image
 
 CENTER=(47.222586,39.719441)
 BOUNDS=(47.207,39.699,47.231,39.746)
-URL='https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
+URLS=('https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
+      'https://elevation-tiles-prod-eu.s3.eu-central-1.amazonaws.com/terrarium/{z}/{x}/{y}.png')
 
 def mercator(lon,lat,zoom):
  n=2**zoom
@@ -27,8 +28,8 @@ class Tiles:
   path=self.cache/str(self.zoom)/str(x)/(str(y)+'.png')
   if not path.exists():
    path.parent.mkdir(parents=True,exist_ok=True)
-   url=URL.format(z=self.zoom,x=x,y=y)
-   for attempt in range(4):
+   for attempt in range(6):
+    url=URLS[attempt%len(URLS)].format(z=self.zoom,x=x,y=y)
     try:
      with urlopen(Request(url,headers={'User-Agent':'RostovDrive/0.3 terrain importer'}),timeout=25) as response:
       content=response.read()
@@ -37,7 +38,7 @@ class Tiles:
      break
     except Exception as error:
      print('TERRAIN_RETRY',url,str(error),flush=True)
-     if attempt==3:raise
+     if attempt==5:raise
      time.sleep(1+attempt*2)
   with Image.open(path) as im:
    image=im.convert('RGB')
