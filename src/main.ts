@@ -6,6 +6,7 @@ import {CityWorld} from './world';
 import {human,vehicle} from './actors';
 import {StreetTraffic} from './traffic';
 import {TerrainModel,loadTerrain} from './terrain';
+import {ASSET_LIBRARY,installAsset} from './assets';
 
 const element=(id:string)=>document.getElementById(id)!;
 const canvas=element('scene') as HTMLCanvasElement;
@@ -50,6 +51,7 @@ let traffic:StreetTraffic|null=null;
 let rapier:RAPIER.World|null=null;
 let loaded=false,driving=false,heading=0,yaw=0,zoom=10,vehicleSpeed=0;
 let px=0,pz=0,cx=0,cz=0,walkPhase=0;
+const animationMixers:THREE.AnimationMixer[]=[];
 let last=0,frame=0,lastStatus='',lastSaved=0;
 const keys=new Set<string>();
 const status=(text:string)=>{if(text!==lastStatus){element('status').textContent=text;lastStatus=text;}};
@@ -162,6 +164,7 @@ function drawMinimap(x:number,z:number):void{
 function tick(now:number):void{
  requestAnimationFrame(tick);
  const dt=Math.min(.04,(now-last)/1000||0);last=now;frame++;
+ for(const mixer of animationMixers)mixer.update(dt);
  if(city&&loaded){
   const forward=Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'));
   const side=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
@@ -220,6 +223,9 @@ async function init():Promise<void>{
   const ground=rapier.createRigidBody(RAPIER.RigidBodyDesc.fixed());
   rapier.createCollider(RAPIER.ColliderDesc.cuboid(2700,.2,2600),ground);
   avatar.visible=true;car.visible=true;loaded=true;
+  void Promise.all([installAsset(avatar,ASSET_LIBRARY.character),installAsset(car,ASSET_LIBRARY.sedan)]).then(items=>{
+   for(const item of items)if(item)animationMixers.push(item);
+  });
   status('Ростов с реальным рельефом · '+data.roads.length+' улиц · '+data.buildings.length+' зданий · '+city.riverfrontCount+' деталей набережной · 1 центр / 2 набережная');
  }catch(error){avatar.visible=false;car.visible=false;status('Ошибка запуска: '+String(error));console.error(error);}
 }
