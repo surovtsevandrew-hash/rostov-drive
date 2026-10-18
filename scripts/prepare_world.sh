@@ -17,7 +17,7 @@ fi
 if [ ! -x "$ROOT/.venv/bin/python" ]; then
   python3 -m venv "$ROOT/.venv"
 fi
-"$ROOT/.venv/bin/python" -m pip install --disable-pip-version-check osmium
+"$ROOT/.venv/bin/python" -m pip install --disable-pip-version-check osmium Pillow
 if [ ! -s "$PBF" ]; then
   echo 'DOWNLOADING=GEOfABRIK_PBF'
   curl --fail --location --retry 5 --retry-delay 5 --continue-at - --output "$PBF" 'https://download.geofabrik.de/russia/south-fed-district-latest.osm.pbf'
@@ -28,6 +28,8 @@ if [ ! -s "$CLIPPED" ]; then
   echo 'EXTRACT=ROSTOV_TRIPLE_AREA'
   osmium extract --bbox 39.699,47.207,39.746,47.231 --strategy complete_ways --overwrite --output "$CLIPPED" "$PBF"
 fi
+echo 'PREPARING=REAL_TERRARIUM_ELEVATION'
+"$ROOT/.venv/bin/python" scripts/prepare_terrain.py --cache "$ROOT/.data/terrarium" --output "$ROOT/public/world/terrain.json"
 echo 'CONVERTING=ROADS_BUILDINGS_RIVER_FRONT_PARKS'
 "$ROOT/.venv/bin/python" scripts/import_osm.py --input "$CLIPPED" --output "$JSON"
 "$ROOT/.venv/bin/python" - "$JSON" <<'PY'
