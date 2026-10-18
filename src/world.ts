@@ -98,8 +98,11 @@ export class CityWorld{
   for(const [v,mat] of [[pavementVertices,walkway],[roadVertices,asphalt],[edgeVertices,paint],[stripeVertices,paint]] as [number[],T.Material][]){
    const mesh=surface(v,mat);if(mesh){mesh.receiveShadow=true;this.group.add(mesh);}
   }
-  const facades=[0xc7b8a6,0xd3c2ae,0xb9b3a8,0xaaa89e,0xd0baac,0x9eaaa8,0xd4bda4].map(color=>new T.MeshStandardMaterial({color,roughness:.91}));
-  const windowBuckets=new Map<string,{panes:T.Matrix4[];frames:T.Matrix4[]}>();let count=0,windowCount=0;
+  const facadeColors=[0xc7b8a6,0xd3c2ae,0xb9b3a8,0xaaa89e,0xd0baac,0x9eaaa8,0xd4bda4,0xb27c65,0x9aa8b5];
+  const facades=facadeColors.map((color,i)=>new T.MeshStandardMaterial({color,roughness:i===8?.56:.91,map:patterned(i===7?'#bf9e88':'#d8d4c9','#59606a',i===7)}));
+  const awningMaterial=new T.MeshStandardMaterial({color:0x893b37,roughness:.72});
+  const balconyMaterial=new T.MeshStandardMaterial({color:0x818b8b,metalness:.37,roughness:.65});
+  const windowBuckets=new Map<string,{panes:T.Matrix4[];frames:T.Matrix4[];cornices:T.Matrix4[];balconies:T.Matrix4[];railings:T.Matrix4[];shopfronts:T.Matrix4[]}>();let count=0,windowCount=0;
   for(const building of data.buildings){
    const p=building.points;if(p.length<3)continue;
    const xs=p.map(q=>q.x),zs=p.map(q=>q.z);
@@ -108,27 +111,45 @@ export class CityWorld{
    if(w*d<15||w>170||d>170)continue;
    const chunkKey=Math.floor(((box.minX+box.maxX)*.5)/256)+':'+Math.floor(((box.minZ+box.maxZ)*.5)/256);
    let windows=windowBuckets.get(chunkKey);
-   if(!windows){windows={panes:[],frames:[]};windowBuckets.set(chunkKey,windows);}
+   if(!windows){windows={panes:[],frames:[],cornices:[],balconies:[],railings:[],shopfronts:[]};windowBuckets.set(chunkKey,windows);}
    const shape=new T.Shape();shape.moveTo(p[0].x,-p[0].z);for(const q of p.slice(1))shape.lineTo(q.x,-q.z);shape.closePath();
    const g=new T.ExtrudeGeometry(shape,{depth:Math.max(3,Math.min(145,building.height)),bevelEnabled:false,steps:1,curveSegments:1});g.rotateX(-Math.PI/2);g.translate(0,terrain.average(p),0);
-   const mesh=new T.Mesh(g,facades[Math.abs(building.id)%facades.length]);mesh.castShadow=true;mesh.receiveShadow=true;this.getBuildingChunk((box.minX+box.maxX)*.5,(box.minZ+box.maxZ)*.5).add(mesh);this.boxes.push(box);count++;
+   const materialHint=(building.material||'').toLowerCase();
+   const styleID=materialHint.includes('brick')?7:materialHint.includes('glass')?8:materialHint.includes('concrete')?2:Math.abs(building.id)%7;
+   const mesh=new T.Mesh(g,facades[styleID]);mesh.castShadow=true;mesh.receiveShadow=true;this.getBuildingChunk((box.minX+box.maxX)*.5,(box.minZ+box.maxZ)*.5).add(mesh);this.boxes.push(box);count++;
+   const base=terrain.average(p);
    const levels=Math.min(24,Math.floor(building.height/3.15));
    for(let i=0;i<p.length;i++){
     const a=p[i],b=p[(i+1)%p.length],dx=b.x-a.x,dz=b.z-a.z,len=Math.hypot(dx,dz);if(len<5||len>140)continue;
     const nx=-dz/len,nz=dx/len,cols=Math.min(35,Math.floor(len/3)),angle=-Math.atan2(dz,dx);
+    windows.cornices.push(matrix((a.x+b.x)/2+nx*.13,base+building.height-.19,(a.z+b.z)/2+nz*.13,angle,len,.22,.28));
     for(let level=0;level<levels;level++)for(let n=0;n<cols;n++){
      if(windowCount>=125000)break;
      const t=(n+.5)/cols,x=a.x+dx*t,z=a.z+dz*t,y=terrain.average(p)+2.15+level*3.15;
      windows.panes.push(matrix(x+nx*.11,y,z+nz*.11,angle));
      windows.frames.push(matrix(x+nx*.075,y,z+nz*.075,angle,1.38,1.3,1));windowCount++;
+     if(level>0&&level<levels-1&&n%4===2&&styleID!==8&&windows.balconies.length<1800){
+      windows.balconies.push(matrix(x+nx*.74,y-.82,z+nz*.74,angle,1.88,.13,.95));
+      windows.railings.push(matrix(x+nx*1.19,y-.35,z+nz*1.19,angle,1.84,.85,.07));
+     }
+     if(level===0&&n%4===1&&building.height<30&&windows.shopfronts.length<900){
+      windows.shopfronts.push(matrix(x+nx*.48,base+3.06,z+nz*.48,angle,2.2,.16,.8));
+     }
     }
    }
   }
   this.buildingCount=count;
-  const glassShape=new T.BoxGeometry(1.12,1.36,.09),frameShape=new T.BoxGeometry(1.12,1.36,.08);
+  const glassShape=new T.BoxGeometry(1.12,1.36,.09),frameShape=new T.BoxGeometry(1.12,1.36,.08),detailShape=new T.BoxGeometry(1,1,1);
   for(const [key,mats] of windowBuckets){
    const chunk=this.buildingChunks.get(key);
-   if(chunk){instance(chunk,glassShape,glass,mats.panes);instance(chunk,frameShape,framing,mats.frames);}
+   if(chunk){
+    instance(chunk,glassShape,glass,mats.panes);
+    instance(chunk,frameShape,framing,mats.frames);
+    instance(chunk,detailShape,framing,mats.cornices);
+    instance(chunk,detailShape,balconyMaterial,mats.balconies);
+    instance(chunk,detailShape,pole,mats.railings);
+    instance(chunk,detailShape,awningMaterial,mats.shopfronts);
+   }
   }
   const scenery=new Map<string,{trunks:T.Matrix4[];crowns:T.Matrix4[];poles:T.Matrix4[];bulbs:T.Matrix4[]}>();
   const sceneryFor=(x:number,z:number)=>{
