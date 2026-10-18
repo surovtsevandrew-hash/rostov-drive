@@ -1,7 +1,7 @@
 export type Point={x:number;z:number};
 export type Geo={lat:number;lon:number};
 export type Road={id:number;name:string;width:number;kind?:string;points:Point[]};
-export type Building={id:number;height:number;points:Point[]};
+export type Building={id:number;height:number;points:Point[];kind?:string;material?:string;roof?:string;roof_colour?:string;name?:string};
 export type Polygon={id:number;points:Point[];name?:string;kind?:string};
 export type Path={id:number;points:Point[];name:string;width:number};
 export type CityData={

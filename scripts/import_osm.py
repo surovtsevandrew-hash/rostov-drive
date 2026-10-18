@@ -65,7 +65,16 @@ class Extractor(osmium.SimpleHandler):
                 height=float(tags['height'].replace(' m','')) if 'height' in tags else 3.2*float(tags.get('building:levels','4'))
             except ValueError:
                 height=12
-            self.push('buildings',{'id':way.id,'height':round(max(3,min(height,150)),2),'points':points})
+            self.push('buildings',{
+                'id':way.id,
+                'height':round(max(3,min(height,150)),2),
+                'points':points,
+                'kind':tags.get('building','yes'),
+                'material':tags.get('building:material',''),
+                'roof':tags.get('roof:shape',''),
+                'roof_colour':tags.get('roof:colour',''),
+                'name':tags.get('name','')
+            })
         if park and polygon and len(points)>=3:
             self.push('parks',{'id':way.id,'points':points,'kind':tags.get('leisure',tags.get('natural',tags.get('landuse','grass')))})
         if waters and polygon and len(points)>=3:
