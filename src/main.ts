@@ -5,6 +5,7 @@ import {chooseSpawn,loadCity,location,type CityData,type Point} from './geo';
 import {CityWorld} from './world';
 import {human,vehicle} from './actors';
 import {StreetTraffic} from './traffic';
+import {TerrainModel,loadTerrain} from './terrain';
 
 const element=(id:string)=>document.getElementById(id)!;
 const canvas=element('scene') as HTMLCanvasElement;
@@ -44,6 +45,7 @@ scene.add(avatar,car);
 
 let data:CityData|null=null;
 let city:CityWorld|null=null;
+let elevation:TerrainModel|null=null;
 let traffic:StreetTraffic|null=null;
 let rapier:RAPIER.World|null=null;
 let loaded=false,driving=false,heading=0,yaw=0,zoom=10,vehicleSpeed=0;
@@ -60,7 +62,7 @@ function moveToRoad(point:{x:number;z:number;heading:number}):void{
  pz=point.z-Math.sin(heading)*3;
  if(city?.blocked(px,pz,.65)){px=point.x-Math.cos(heading)*3;pz=point.z+Math.sin(heading)*3;}
  const clearance=city?city.cameraClearance(px,pz,px+Math.sin(yaw)*zoom,pz+Math.cos(yaw)*zoom):zoom;
- camera.position.set(px+Math.sin(yaw)*clearance,Math.max(3,clearance*.5),pz+Math.cos(yaw)*clearance);
+ camera.position.set(px+Math.sin(yaw)*clearance,(elevation?.height(px,pz)||0)+Math.max(3,clearance*.5),pz+Math.cos(yaw)*clearance);
  camera.lookAt(px,1.65,pz);
 }
 
@@ -179,8 +181,8 @@ function tick(now:number):void{
    avatar.rotation.y=Math.atan2(-dx,-dz);walkPhase+=dt*speed*1.9;
   }
   avatar.visible=!driving;
-  avatar.position.set(px,0,pz);
-  car.position.set(cx,0,cz);car.rotation.y=heading;
+  avatar.position.set(px,(elevation?.height(px,pz)||0)+.08,pz);
+  car.position.set(cx,(elevation?.height(cx,cz)||0)+.12,cz);car.rotation.y=heading;
   const moving=!driving&&(forward!==0||side!==0),swing=moving?Math.sin(walkPhase)*.36:0;
   const legs=avatar.userData.legs as THREE.Mesh[]|undefined;
   const arms=avatar.userData.arms as THREE.Mesh[]|undefined;
@@ -188,8 +190,8 @@ function tick(now:number):void{
   const x=driving?cx:px,z=driving?cz:pz,dist=driving?zoom+2:zoom;
   const limit=city.cameraClearance(x,z,x+Math.sin(yaw)*dist,z+Math.cos(yaw)*dist);
   const safe=Math.max(1.6,Math.min(dist,limit));
-  camera.position.lerp(new THREE.Vector3(x+Math.sin(yaw)*safe,Math.max(2.6,safe*.48),z+Math.cos(yaw)*safe),Math.min(1,dt*7));
-  camera.lookAt(x,driving?1.35:1.65,z);
+  camera.position.lerp(new THREE.Vector3(x+Math.sin(yaw)*safe,(elevation?.height(x,z)||0)+Math.max(2.6,safe*.48),z+Math.cos(yaw)*safe),Math.min(1,dt*7));
+  camera.lookAt(x,(elevation?.height(x,z)||0)+(driving?1.35:1.65),z);
   traffic?.update(dt,x,z,driving?{x:cx,z:cz}:undefined);
   rapier?.step();
   if(frame%30===0){
@@ -208,16 +210,17 @@ async function init():Promise<void>{
  try{
   data=await loadCity(status);
   status('Строю настоящий Ростов: дороги, Дон, набережную...');
-  city=new CityWorld(data);scene.add(city.group);
+  elevation=await loadTerrain(status);
+  city=new CityWorld(data,elevation);scene.add(city.group);
   moveToRoad(chooseSpawn(data));
   city.updateView(px,pz);
-  traffic=new StreetTraffic(data);scene.add(traffic.group,traffic.people);
+  traffic=new StreetTraffic(data,elevation);scene.add(traffic.group,traffic.people);
   await RAPIER.init();
   rapier=new RAPIER.World({x:0,y:-9.81,z:0});
   const ground=rapier.createRigidBody(RAPIER.RigidBodyDesc.fixed());
   rapier.createCollider(RAPIER.ColliderDesc.cuboid(2700,.2,2600),ground);
   avatar.visible=true;car.visible=true;loaded=true;
-  status('Реальный Ростов · '+data.roads.length+' улиц · '+data.buildings.length+' зданий · '+city.riverfrontCount+' деталей набережной · 1 центр / 2 набережная');
+  status('Ростов с реальным рельефом · '+data.roads.length+' улиц · '+data.buildings.length+' зданий · '+city.riverfrontCount+' деталей набережной · 1 центр / 2 набережная');
  }catch(error){avatar.visible=false;car.visible=false;status('Ошибка запуска: '+String(error));console.error(error);}
 }
 requestAnimationFrame(tick);
