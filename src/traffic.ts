@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type {CityData,Point,Road,Path} from './geo';
 import {vehicle,human} from './actors';
+import {TerrainModel} from './terrain';
 
 type Route={points:Point[];cumulative:number[];total:number;};
 type Driver={mesh:THREE.Group;route:Route;distance:number;speed:number;direction:number;seed:number;heading:number;};
@@ -33,7 +34,7 @@ export class StreetTraffic{
  private sinceRefresh=100;
  private lastX=Infinity;
  private lastZ=Infinity;
- constructor(city:CityData){
+ constructor(city:CityData,private readonly terrain:TerrainModel){
   this.roadRoutes=city.roads.filter((r:Road)=>r.width>=7&&r.kind!=='service'&&r.kind!=='pedestrian').map(r=>routeOf(r.points)).filter((r):r is Route=>r!==null&&r.total>65);
   this.pedestrianRoutes=[...(city.footways||[]),...(city.waterfront||[])].map((r:Path)=>routeOf(r.points)).filter((r):r is Route=>r!==null&&r.total>40);
  }
@@ -74,7 +75,7 @@ export class StreetTraffic{
    walker.distance=random(i*47+Math.floor(z/140))*route.total;
    walker.mesh.visible=true;
    const point=evaluate(route,walker.distance,walker.direction);
-   walker.mesh.position.set(point.x,.04,point.z);
+   walker.mesh.position.set(point.x,this.terrain.height(point.x,point.z)+.05,point.z);
   }
  }
  update(dt:number,x:number,z:number,playerCar?:Point):void{
@@ -94,7 +95,7 @@ export class StreetTraffic{
    if(v.distance>=v.route.total){v.distance=v.route.total;v.direction=-1;}
    if(v.distance<=0){v.distance=0;v.direction=1;}
    const next=evaluate(v.route,v.distance,v.direction);
-   v.mesh.position.set(next.x,.04,next.z);v.mesh.rotation.y=next.heading;
+   v.mesh.position.set(next.x,this.terrain.height(next.x,next.z)+.12,next.z);v.mesh.rotation.y=next.heading;
    v.heading=next.heading;
   }
   for(const w of this.walkers){
@@ -104,7 +105,7 @@ export class StreetTraffic{
    if(w.distance>=w.route.total){w.distance=w.route.total;w.direction=-1;}
    if(w.distance<=0){w.distance=0;w.direction=1;}
    const p=evaluate(w.route,w.distance,w.direction);
-   w.mesh.position.set(p.x,.04,p.z);w.mesh.rotation.y=p.heading;
+   w.mesh.position.set(p.x,this.terrain.height(p.x,p.z)+.05,p.z);w.mesh.rotation.y=p.heading;
    w.phase+=dt*9;
    const arms=w.mesh.userData.arms as THREE.Mesh[]|undefined;
    const legs=w.mesh.userData.legs as THREE.Mesh[]|undefined;
