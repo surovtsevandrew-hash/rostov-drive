@@ -202,7 +202,8 @@ function tick(now:number):void{
    sunlight.position.set(x-90,160,z+50);
    sunlight.target.position.set(x,0,z);sunlight.target.updateMatrixWorld();
    const gps=location({x,z});
-   status('РОСТОВ · '+gps.lat.toFixed(5)+', '+gps.lon.toFixed(5)+' · '+(driving?Math.round(Math.abs(vehicleSpeed)*3.6)+' км/ч':'ПЕШКОМ')+' · Трафик '+(traffic?.drivers.length||0));
+   const demHeight=elevation?Math.round((elevation.height(x,z)+elevation.data.datum)*10)/10:0;
+   status('РОСТОВ · '+gps.lat.toFixed(5)+', '+gps.lon.toFixed(5)+' · DEM '+demHeight+' м · '+(driving?Math.round(Math.abs(vehicleSpeed)*3.6)+' км/ч':'ПЕШКОМ')+' · Трафик '+(traffic?.drivers.length||0));
    drawMinimap(x,z);
   }
  }
